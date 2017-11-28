@@ -65,7 +65,7 @@ class Git(object):
     def pullLatest(self):
         remotes = self.listRemotes()
         if "origin" in remotes:
-            return self.subprocessCheckCall(['git fetch origin'], shell=True) == 0
+            return self.subprocessCheckCall(['git fetch origin -p'], shell=True) == 0
         else:
             return True
 
@@ -233,11 +233,12 @@ class Git(object):
             return self.testDefinitionLocationCache_.get(commit)
         
         paths = sorted(
-            [p for p in (
-                self.subprocessCheckOutput(["git", "ls-files", "*/testDefinitions.json"]).split("\n")+
-                self.subprocessCheckOutput(["git", "ls-files", "testDefinitions.json"]).split("\n")
-                ) if "testDefinitions.json" in p]
+            [p for p in
+                self.subprocessCheckOutput(["git", "ls-tree", "--name-only", "-r", commit]).split("\n")
+                if p.endswith("/testDefinitions.json") or p == "testDefinitions.json"]
             )
+
+        logging.info("For commit %s, found testDefinitions at %s", commit, paths)
 
         if not paths:
             self.testDefinitionLocationCache_[commit] = None
@@ -248,7 +249,7 @@ class Git(object):
 
     def fetchOrigin(self):
         with self.git_repo_lock:
-            if self.subprocessCheckCall('git fetch', shell=True) != 0:
+            if self.subprocessCheckCall('git fetch -p', shell=True) != 0:
                 logging.error("Failed to fetch from origin!")
 
 
