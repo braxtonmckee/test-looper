@@ -286,7 +286,10 @@ class TestManager(object):
         self.updateBranchList()
 
         for branch in self.branches.values():
-            branch.updateCommitsUnderTest(self)
+            try:
+                branch.updateCommitsUnderTest(self)
+            except:
+                logging.error("Failed to update commits for %s:\n\n%s", branch.branchName, traceback.format_exc())
 
     def updateBranchList(self):
         t0 = time.time()

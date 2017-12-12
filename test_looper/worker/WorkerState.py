@@ -31,13 +31,14 @@ class TestLooperDirectories:
         self.repo_copy_dir = os.path.join(worker_directory, "repo_copy")
         self.build_dir = os.path.join(worker_directory, "build")
         self.output_dir = os.path.join(worker_directory, "output")
+        self.scratch_dir = os.path.join(worker_directory, "scratch_dir")
         self.test_data_dir = os.path.join(worker_directory, "test_data")
         self.build_cache_dir = os.path.join(worker_directory, "build_cache")
         self.ccache_dir = os.path.join(worker_directory, "ccache")
 
     def all(self):
         return [self.repo_copy_dir, self.build_dir, self.test_data_dir, 
-                self.build_cache_dir, self.ccache_dir, self.output_dir, self.repo_cache]
+                self.build_cache_dir, self.ccache_dir, self.output_dir, self.repo_cache, self.scratch_dir]
 
 class WorkerState(object):
     def __init__(self, name_prefix, worker_directory, source_control, artifactStorage, machineInfo, timeout=900, verbose=False):
@@ -108,7 +109,8 @@ class WorkerState(object):
         Docker.DockerImage.removeDanglingDockerImages()
         self.clearDirectoryAsRoot(
             self.directories.test_data_dir, 
-            self.directories.output_dir, 
+            self.directories.output_dir,
+            self.directories.scratch_dir,
             self.directories.build_dir, 
             self.directories.repo_copy_dir
             )
@@ -173,6 +175,7 @@ class WorkerState(object):
                         self.directories.build_dir: "/test_looper/build",
                         self.directories.repo_copy_dir: "/test_looper/src",
                         self.directories.output_dir: "/test_looper/output",
+                        self.directories.scratch_dir: "/test_looper/scratch",
                         self.directories.ccache_dir: "/test_looper/ccache"
                         },
                     privileged=True,
@@ -538,6 +541,7 @@ class WorkerState(object):
             'TEST_SRC_DIR': "/test_looper/src",
             'TEST_BUILD_DIR': "/test_looper/build",
             'TEST_OUTPUT_DIR': "/test_looper/output",
+            'TEST_SCRATCH_DIR': "/test_looper/scratch",
             'TEST_CCACHE_DIR': "/test_looper/ccache",
             'TEST_LOOPER_TEST_ID': testId
             }
