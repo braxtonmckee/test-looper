@@ -838,6 +838,8 @@ class TestManager(object):
                 )
 
             machineId = self.machine_management.boot_worker(category.hardware, category.os)
+            if machineId is None:
+                return False
         except MachineManagement.UnbootableWorkerCombination as e:
             category.hardwareComboUnbootable=True
             category.desired=0
@@ -1097,7 +1099,10 @@ class TestManager(object):
             if env.image.matches.Dockerfile or env.image.matches.DockerfileInline:
                 os = MachineManagement.OsConfig.LinuxWithDocker()
             elif env.image.matches.AMI:
-                os = MachineManagement.OsConfig.LinuxVM(env.image.base_ami)
+                os = MachineManagement.OsConfig.LinuxVM(
+                    ami=env.image.base_ami, 
+                    setup_script_contents=env.image.setup_script_contents
+                    )
             else:
                 return None
 
@@ -1105,7 +1110,10 @@ class TestManager(object):
             if env.image.matches.Dockerfile or env.image.matches.DockerfileInline:
                 os = MachineManagement.OsConfig.WindowsWithDocker()
             elif env.image.matches.AMI:
-                os = MachineManagement.OsConfig.WindowsVM(env.image.base_ami)
+                os = MachineManagement.OsConfig.WindowsVM(
+                    ami=env.image.base_ami, 
+                    setup_script_contents=env.image.setup_script_contents
+                    )
             else:
                 return None
 

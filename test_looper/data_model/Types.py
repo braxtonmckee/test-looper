@@ -137,6 +137,18 @@ def setup_types(database):
         hardwareComboUnbootable=bool
         )
 
+    database.LogEntry.define(
+        timestamp=float,
+        data=str,
+        prior=database.LogEntry
+        )
+
+    database.AmiCache.define(
+        category=database.MachineCategory,
+        ami_id=str,
+        log=database.LogEntry
+        )
+
     database.Machine.define(
         machineId=str,
         hardware=Config.HardwareConfig,

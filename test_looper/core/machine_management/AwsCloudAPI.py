@@ -1,5 +1,6 @@
 import boto3
 import uuid
+from test_looper.core.hash import sha_hash
 import test_looper.core.algebraic as algebraic
 import test_looper.core.algebraic_to_json as algebraic_to_json
 import base64
@@ -57,18 +58,45 @@ class API:
         logging.info("Terminating AWS instance %s", instance)
         instance.terminate()
 
+    def lookup_ami_cache(self, platform, instance_type, ami, setup_script_contents):
+        assert platform in ["linux", "windows"]
+
+        hashval = (
+            sha_hash((platform, ami, setup_script_contents, instance_type))
+            ).hexdigest
+
+        filters = [{  
+            'Name': 'tag:Name',
+            'Values': [self.config.machine_management.worker_name + "-" + hashval]
+            }]
+
+        images = self.ec2_client.describe_images(Filters=filters)["Images"]
+
+        assert len(images) == 0 or len(images) == 1, "Found multiple images for the same setup script"
+
+        if images:
+            return images[0]["ImageId"]
+
+        #now look to see if we have a worker who is building this image
+
+
+        
+
     def bootWorker(self, 
             platform, 
             instanceType,
             hardwareConfig,
             clientToken=None,
-            amiOverride=None
+            amiOverride=None,
+            setup_script_contents=None
             ):
         assert platform in ["linux", "windows"]
 
         to_json = algebraic_to_json.Encoder().to_json
 
         if platform == "linux":
+            assert setup_script_contents is None, "Setup script not enabled for linux AMIs"
+
             boot_script = (
                 linux_bootstrap_script
                     .replace("__test_key__", open(self.config.machine_management.path_to_keys,"r").read())
@@ -115,16 +143,19 @@ class API:
 
             bucket = self.s3.Bucket(self.config.machine_management.bootstrap_bucket)
 
-            actual_bootstrap_script = (
-                windows_bootstrap_script.replace("__test_config__", json.dumps({
-                        "server_ports": to_json(self.config.server_ports),
-                        "source_control": to_json(self.config.source_control),
-                        "artifacts": to_json(self.config.artifacts),
-                        "cores": hardwareConfig.cores,
-                        "ram_gb": hardwareConfig.ram_gb
-                        }, indent=4))
-                    .replace("__testlooper_server_and_port__", looper_server_and_port)
-                )
+            if setup_script_contents is not None:
+                actual_bootstrap_script = setup_script_contents
+            else:
+                actual_bootstrap_script = (
+                    windows_bootstrap_script.replace("__test_config__", json.dumps({
+                            "server_ports": to_json(self.config.server_ports),
+                            "source_control": to_json(self.config.source_control),
+                            "artifacts": to_json(self.config.artifacts),
+                            "cores": hardwareConfig.cores,
+                            "ram_gb": hardwareConfig.ram_gb
+                            }, indent=4))
+                        .replace("__testlooper_server_and_port__", looper_server_and_port)
+                    )
 
             bucket.put_object(Key=self.config.machine_management.bootstrap_key_prefix + '/%s.ps1' % bootstrap_uuid, Body=actual_bootstrap_script)
 

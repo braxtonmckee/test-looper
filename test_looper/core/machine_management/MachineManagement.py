@@ -13,8 +13,20 @@ import os
 OsConfig = algebraic.Alternative("OsConfig")
 OsConfig.LinuxWithDocker = {}
 OsConfig.WindowsWithDocker = {}
-OsConfig.WindowsVM = {"ami": str}
-OsConfig.LinuxVM = {"ami": str}
+OsConfig.WindowsVM = {"ami": str, "setup_script_contents": str}
+OsConfig.LinuxVM = {"ami": str, "setup_script_contents": str}
+
+def OsConfigStr(self):
+    if self.matches.LinuxWithDocker:
+        return "LinuxWithDocker()"
+    if self.matches.WindowsWithDocker:
+        return "WindowsWithDocker()"
+    if self.matches.WindowsVM:
+        return "WindowsVM(ami=%s,setup_hash=%s)" % (self.ami, algebraic.sha_hash(self.setup_script_contents).hexdigest)
+    if self.matches.LinuxVM:
+        return "LinuxVM(ami=%s,setup_hash=%s)" % (self.ami, algebraic.sha_hash(self.setup_script_contents).hexdigest)
+
+OsConfig.__str__ = OsConfigStr
 
 class UnbootableWorkerCombination(Exception):
     """An exception indicating that we can't meet this request for hardware/software,
@@ -24,6 +36,15 @@ class UnbootableWorkerCombination(Exception):
         Exception.__init__(self, "Can't boot configuration %s/%s" % (hardwareConfig, osConfig))
         
         self.hardwareConfig = hardwareConfig
+        self.osConfig = osConfig
+
+class WaitingOnAmiConstruction(Exception):
+    """An exception indicating that we can't meet this request for hardware/software,
+    either because the AMI doesn't exist, or because we don't support some feature yet.
+    """
+    def __init__(self, osConfig):
+        Exception.__init__(self, "Waiting for AWS to build an AMI for %s" % osConfig)
+        
         self.osConfig = osConfig
 
 
@@ -107,7 +128,7 @@ class MachineManagement(object):
 
         return None if not possible to boot such a worker.
         """
-        assert False, "Subclsses implement"
+        assert False, "Subclasses implement"
 
 
 class DummyMachineManagement(MachineManagement):
@@ -272,6 +293,9 @@ class AwsMachineManagement(MachineManagement):
             else:
                 raise Exception("Machine %s isn't in our list of running instances")
 
+    def build_ami(self, platform, instance_type, ami, setup_script_contents):
+        pass
+
     def boot_worker(self, hardware_config, os_config):
         with self._lock:
             assert self.canBoot(hardware_config, os_config)
@@ -281,14 +305,27 @@ class AwsMachineManagement(MachineManagement):
 
             if os_config.matches.LinuxWithDocker:
                 platform = "linux"
+                setup_script_contents = None
                 amiOverride = None
             elif os_config.matches.WindowsVM:
                 platform = "windows"
-                amiOverride = os_config.ami
+                
+                if os_config.setup_script_contents:
+                    amiOverride = self.api.lookup_ami_cache(platform, instance_type, os_config.ami, os_config.setup_script_contents)
+                else:
+                    amiOverride = os_config.ami
+
+                if amiOverride is None:
+                    raise WaitingOnAmiConstruction(os_config)
             else:
                 raise UnbootableWorkerCombination(hardware_config, os_config)
 
-            machineId = self.api.bootWorker(platform, instance_type, hardware_config, amiOverride=amiOverride)
+            machineId = self.api.bootWorker(
+                platform,
+                instance_type,
+                hardware_config,
+                amiOverride=amiOverride
+                )
 
             self._machineBooted(machineId, hardware_config, os_config, True)
 

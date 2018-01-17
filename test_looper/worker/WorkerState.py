@@ -79,8 +79,6 @@ class WorkerState(object):
 
         self.name_prefix = name_prefix
 
-        self.isFirstTest = True
-
         assert isinstance(worker_directory, (str,unicode)), worker_directory
         worker_directory = str(worker_directory)
 
@@ -725,8 +723,6 @@ class WorkerState(object):
             logging.error(error_message)
             workerCallback.heartbeat(error_message)
             return False, {}
-        finally:
-            self.isFirstTest = False
 
     def extract_package(self, package_file, target_dir):
         with tarfile.open(package_file) as tar:
@@ -871,13 +867,6 @@ class WorkerState(object):
 
         if environment.image.matches.AMI:
             image = NAKED_MACHINE
-
-            #prepend the command to the script contents - normally this should be part of the AMI cachine routine
-            #but we haven't implemented that yet.
-            if self.isFirstTest:
-                command = environment.image.setup_script_contents + "\n\n" + command
-            else:
-                logging.info("Not running setup script because it's not our first test.")
         else:
             with self.callHeartbeatInBackground(workerCallback.heartbeat, "Extracting docker image for environment %s" % environment):
                 image = self.getDockerImage(environment)
